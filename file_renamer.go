@@ -16,6 +16,9 @@ type fileRenamer struct {
 	pathname string
 	from     string
 	to       string
+
+	re                      *regexp.Regexp
+	performArabicConversion bool
 }
 
 func NewFileRenamer(pathname, from, to string) *fileRenamer {
@@ -27,13 +30,19 @@ func NewFileRenamer(pathname, from, to string) *fileRenamer {
 }
 
 func (r *fileRenamer) Do() {
-	files, err := ioutil.ReadDir(r.pathname)
-	if err != nil {
-		log.Fatalf("Failed to list files from: %s. Error: %v", r.pathname, err)
+	if strings.Contains(r.to, "<arabic>") {
+		r.performArabicConversion = true
 	}
+
 	re, err := regexp.Compile(r.from)
 	if err != nil {
 		log.Fatalf("Failed to compile regex from: %s. Error: %v", r.from, err)
+	}
+	r.re = re
+
+	files, err := ioutil.ReadDir(r.pathname)
+	if err != nil {
+		log.Fatalf("Failed to list files from: %s. Error: %v", r.pathname, err)
 	}
 	for _, f := range files {
 		fromName := filepath.Base(f.Name())
@@ -41,8 +50,8 @@ func (r *fileRenamer) Do() {
 			// skip hidden files
 			continue
 		}
-		toName := re.ReplaceAllString(fromName, r.to)
-		if fromName == toName {
+		toName := r.convertFilename(fromName)
+		if toName == "" || fromName == toName {
 			// skip files with no change
 			continue
 		}
@@ -66,8 +75,8 @@ func (r *fileRenamer) Do() {
 			// skip hidden files
 			continue
 		}
-		toName := re.ReplaceAllString(fromName, r.to)
-		if fromName == toName {
+		toName := r.convertFilename(fromName)
+		if toName == "" || fromName == toName {
 			// skip files with no change
 			continue
 		}
@@ -78,4 +87,17 @@ func (r *fileRenamer) Do() {
 		}
 		log.Infof("%s => %s SUCCESS", fromName, toName)
 	}
+}
+
+func (r *fileRenamer) convertFilename(fromName string) string {
+	to := r.to
+	if r.performArabicConversion {
+		// chinese number to arabic number
+		groups := r.re.FindStringSubmatch(fromName)
+		if len(groups) < 1 {
+			return ""
+		}
+		to = strings.ReplaceAll(to, "<arabic>", ConvertChineseNumberToArabicNumber(groups[1]))
+	}
+	return r.re.ReplaceAllString(fromName, to)
 }

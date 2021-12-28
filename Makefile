@@ -7,5 +7,8 @@ clean:
 	go clean
 	rm -f ./bin/${BINARY_NAME}
 
-install:
+install: build
 	cp -f bin/${BINARY_NAME} /usr/local/bin/
+
+test:
+	go test
